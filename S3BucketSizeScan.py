@@ -3,13 +3,11 @@ from helper import writeCsvFile, writeJsonFile, convertBytesSize
 
 # number of max keys
 BATCHLISTING = 500
-JSONFILENAME = './reports/S3BucketQuery.json'
-CSVFILENAME  = './reports/S3BucketQuery.csv'
-DOWNLOADDIR  = './downloads/'
+JSONFILENAME = './reports/S3BucketSizeScan.json'
+CSVFILENAME  = './reports/S3BucketSizeScan.csv'
 ## User Data ##
-BUCKET       = '<bucket>' #'bucketname'
-PREFIX       = '<prefix | dir>' #'dir1/dir2/'
-SEARCHPREFIX = '<name prefix>' #'name-file'
+BUCKET       = '<bucket>'  # 'bucketname'
+PREFIX       = '<prefix | dir>'  # 'dir1/dir2/'
 
 S3Client = boto3.client('s3')
 
@@ -30,10 +28,9 @@ def getObjectsPrefix(client, Bucket, Prefix, marker=''):
     return response
 
 
-def listObjects(client, Bucket, Prefix, SearchPrefix):
+def listObjects(client, Bucket, Prefix):
     marker = ''
     size   = 0;
-    foundObj = []
     while True:
         response = getObjectsPrefix(client, Bucket, Prefix, marker)
         if 'Contents' in response:
@@ -41,24 +38,16 @@ def listObjects(client, Bucket, Prefix, SearchPrefix):
                 keyObj  = response['Contents'][i]['Key']
                 sizeObj = response['Contents'][i]['Size']
                 marker  = keyObj
-
-                if(keyObj.find(SearchPrefix) > 0):
-                    size = size + sizeObj
-                    foundObj.append(keyObj)
+                size    = size + sizeObj
         else:
             break;
        
     bucketDetail = dict()
     bucketDetail['bucketName'] = Bucket
     bucketDetail['size']       = convertBytesSize(size)
-    bucketDetail['found']      = foundObj
+    bucketDetail['prefix']     = Prefix
     return bucketDetail
 
-
-def fetchObjects(client, Bucket, ObjKey):
-    print("Fetching: " + str(ObjKey))
-    with open(DOWNLOADDIR+ObjKey.split("/")[-1], 'wb') as data:
-        client.download_fileobj(Bucket, ObjKey, data)
 
 response = S3Client.list_buckets()
 buckets  = []
@@ -67,16 +56,10 @@ for i in range(len(response['Buckets'])):
 
 results = dict()
 if BUCKET in buckets:
-    res = listObjects(S3Client, BUCKET, PREFIX, SEARCHPREFIX)
+    res = listObjects(S3Client, BUCKET, PREFIX)
     results[res['bucketName']] = res['size']
-    results['Founds']          = res['found']
-
-    if(len(results['Founds']) > 0):
-        for i in range(len(results['Founds'])):
-            fetchObjects(S3Client, BUCKET, results['Founds'][i])
-        print("Completed! Total Size: " + results[BUCKET])
-    else:
-        print("Completed! No Prefix Matched!");
+    results['prefix']          = res['prefix']
+    print(results)
 else:
     print("Bucket Not Found.");
 
