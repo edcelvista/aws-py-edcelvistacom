@@ -2,13 +2,32 @@ import boto3
 import json
 import os
 import time
+import argparse
 from datetime import datetime, date, timedelta
 
 from helper import writeCsvFile, writeJsonFile
 
-REGION            = '<region>'
+# Define arguments for command line execution
+parser = argparse.ArgumentParser(
+    description="Step Function Execution Log Scan")
+parser.add_argument("-r",
+                    "--region",
+                    help="Target Region",
+                    required=True)
+parser.add_argument("-a",
+                    "--arn",
+                    help="Step Function Arn",
+                    required=True)
+
+# Read the arguments from the command line
+args = parser.parse_args()
+region = args.region
+arn = args.arn
+
+
+REGION = region #'<region>'
 # MAXEVENTLOGSAGE = 10 ## hours
-SFNARN            = '<step function arn>'
+SFNARN = arn #'<step function arn>'
 JSONFILENAME      = './reports/StepFunctionExecScan.json'
 
 client = boto3.client('stepfunctions')
@@ -59,12 +78,17 @@ def getExecHistory(client, executionArn):
 
 executionList = listExecutions(client, SFNARN)
 exectionHistoryPerExecutionArn = []
+hasFetched = False
 for i in range(len(executionList)):
     c = dict()
     executionArn = executionList[i]['executionArn']
     executionEventList = getExecHistory(client, executionArn)
     c[executionArn] = executionEventList
     exectionHistoryPerExecutionArn.append(c)
+    hasFetched = True
 
-writeJsonFile(JSONFILENAME, exectionHistoryPerExecutionArn)
-print("Report Generated...")
+if(hasFetched):
+    writeJsonFile(JSONFILENAME, exectionHistoryPerExecutionArn)
+    print("Report Generated...")
+else:
+    print("Nothing Found...")

@@ -4,7 +4,6 @@ from helper import writeCsvFile, writeJsonFile, convertBytesSize
 # number of max keys
 BATCHLISTING = 500
 JSONFILENAME = './reports/S3BucketScan.json'
-CSVFILENAME  = './reports/S3BucketScan.csv'
 
 S3Client = boto3.client('s3')
 
@@ -48,4 +47,3 @@ for i in range(len(response['Buckets'])):
     results[res['bucketName']] = res['size']
 
 writeJsonFile(JSONFILENAME, results)
-writeCsvFile(CSVFILENAME, results)

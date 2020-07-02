@@ -1,13 +1,34 @@
-import boto3, json
+import boto3
+import json
+import argparse
 from helper import writeCsvFile, writeJsonFile
 
-REGION       = '<region>'
-CIDRFIND     = '<Cidr Value>'#'0.0.0.0/0'
-# TAGFIND    = 'Delete Me'
-TAGFIND      = '<Security Group Tag>' #'Bahrain-API'
-SCANTYPE     = 'TAG'  # CIDR or TAG
+# Define arguments for command line execution
+parser = argparse.ArgumentParser(
+    description="Extract AMI Details")
+parser.add_argument("-r",
+                    "--region",
+                    help="Target Region",
+                    required=True)
+parser.add_argument("-s",
+                    "--scantype",
+                    help="scantype: CIDR | TAG",
+                    required=True)
+parser.add_argument("-p",
+                    "--prefix",
+                    help="prefix tag or cird to be scanned",
+                    required=False)
+
+# Read the arguments from the command line
+args = parser.parse_args()
+region = args.region
+scantype = args.scantype
+prefix = args.prefix
+
+REGION       = region #'<region>'
+SEARCHSTR    = prefix
+SCANTYPE     = scantype  # CIDR or TAG
 JSONFILENAME = './reports/EC2SGScan.json'
-CSVFILENAME  = './reports/EC2SGScan.csv'
 
 ec2Client = boto3.client('ec2', region_name=REGION)
 
@@ -19,7 +40,7 @@ def scanSg(ec2Client):
             for j in range(len(security_groups_dict['SecurityGroups'][i]['IpPermissions'])):
                 for k in range(len(security_groups_dict['SecurityGroups'][i]['IpPermissions'][j]['IpRanges'])):
                     if SCANTYPE == 'CIDR':
-                        if security_groups_dict['SecurityGroups'][i]['IpPermissions'][j]['IpRanges'][k]['CidrIp'] == CIDRFIND:
+                        if security_groups_dict['SecurityGroups'][i]['IpPermissions'][j]['IpRanges'][k]['CidrIp'] == SEARCHSTR:
                             GroupId = security_groups_dict['SecurityGroups'][i]['GroupId'].rstrip("\n\t")
                             port = security_groups_dict['SecurityGroups'][i]['IpPermissions'][j]['FromPort']
                             if GroupId in forCheckSg:
@@ -31,7 +52,7 @@ def scanSg(ec2Client):
                                 forCheckSg[GroupId] = c
                     elif SCANTYPE == 'TAG':
                         if 'Description' in security_groups_dict['SecurityGroups'][i]['IpPermissions'][j]['IpRanges'][k]:
-                            if TAGFIND in security_groups_dict['SecurityGroups'][i]['IpPermissions'][j]['IpRanges'][k]['Description']:
+                            if SEARCHSTR in security_groups_dict['SecurityGroups'][i]['IpPermissions'][j]['IpRanges'][k]['Description']:
                                 GroupId = security_groups_dict['SecurityGroups'][i]['GroupId'].rstrip("\n\t")
                                 port = security_groups_dict['SecurityGroups'][i]['IpPermissions'][j]['FromPort']
                                 if GroupId in forCheckSg:
@@ -44,5 +65,8 @@ def scanSg(ec2Client):
     return forCheckSg
 
 scannedSg = scanSg(ec2Client)
-writeJsonFile(JSONFILENAME, scannedSg)
-writeCsvFile(CSVFILENAME, scannedSg, ['Security Group ID', 'Ingress Ports'])
+if(len(scannedSg) > 0):
+    writeJsonFile(JSONFILENAME, scannedSg)
+    print("Report Generated...")
+else:
+    print("Nothing Found...")

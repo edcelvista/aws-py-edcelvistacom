@@ -2,12 +2,35 @@ import boto3
 import json
 import os
 import time
+import argparse
 from datetime import datetime, date, timedelta
 from helper import writeCsvFile, writeJsonFile
 
-REGION            = '<region>'
-CWLOGGROUP        = '<Log Group Name>' #"/aws/lambda/notificationLambda"
-# MAXEVENTLOGSAGE = 10 ## hours
+# Define arguments for command line execution
+parser = argparse.ArgumentParser(
+    description="Extract Logs in Specified Cloudwatch Group Get Latest Stream")
+parser.add_argument("-r",
+                    "--region",
+                    help="Target CW Log Group Region",
+                    required=True)
+parser.add_argument("-l",
+                    "--cloudwatchgroup",
+                    help="Target CW Log Group Name",
+                    required=True)
+# parser.add_argument("-a",
+#                     "--logage",
+#                     help="Log age to be fetched",
+#                     required=False)
+
+# Read the arguments from the command line
+args            = parser.parse_args()
+region          = args.region
+cloudwatchgroup = args.cloudwatchgroup
+# logage          = 10 if args.logage == None else args.logage
+
+REGION            = region
+CWLOGGROUP        = cloudwatchgroup   # '<Log Group Name>' #"/aws/lambda/notificationLambda"
+# MAXEVENTLOGSAGE   = logage
 JSONFILENAME      = './reports/CWEventsScan.json'
 
 logsclient = boto3.client('logs', region_name=REGION)
@@ -66,18 +89,22 @@ def getLogStreams(client, logGroupName):
 logGroupDetails = describeLogGroup(logsclient, CWLOGGROUP)
 
 logsparsed = []
+hasFetchStream = False
 for i in range(len(logGroupDetails)):
     cwlgname = logGroupDetails[i]['logGroupName']
     cwlgRecentStream = getLogStreams(logsclient, cwlgname)
 
     for j in range(len(cwlgRecentStream)):
+        hasFetchStream = True
         cwlgStreamGetLatest = cwlgRecentStream[i]['logStreamName'] # get the latest stream..
         # last_hour_date_time = datetime.now() - timedelta(hours=MAXEVENTLOGSAGE)
         # int(time.time()), int(last_hour_date_time.strftime("%s"))
         cwlgEvents = getLogEvents(logsclient, cwlgname, cwlgStreamGetLatest)
         logsparsed.append(cwlgEvents)
 
-writeJsonFile(JSONFILENAME, logsparsed)
-print("Report Generated...")
-
+if(hasFetchStream):
+    writeJsonFile(JSONFILENAME, logsparsed)
+    print("Report Generated...")
+else:
+    print("Nothing Found...")
 

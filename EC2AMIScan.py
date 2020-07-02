@@ -1,15 +1,39 @@
-import boto3, json, os
+import boto3
+import json
+import os
+import argparse
 from datetime import datetime, date
 from helper import writeCsvFile, writeJsonFile
 
-REGION          = '<region>'
-FILTERS         = '<Filter>' #[{'Name': 'name', 'Values': ['SAMPLE AMI NAME WILDCARD*']}]
+# Define arguments for command line execution
+parser = argparse.ArgumentParser(
+    description="Extract AMI Details")
+parser.add_argument("-r",
+                    "--region",
+                    help="Target Region",
+                    required=True)
+parser.add_argument("-f",
+                    "--filtername",
+                    help="Filter Tag Name: e.g. [{'Name': 'name', 'Values': ['SAMPLE AMI NAME WILDCARD*']}]",
+                    required=True)
+parser.add_argument("-a",
+                    "--age",
+                    help="Age in days",
+                    required=True, type=int)
+
+
+# Read the arguments from the command line
+args = parser.parse_args()
+region = args.region
+filtername = args.filtername
+age = 0 if args.age == None else args.age
+
+REGION          = region #'<region>'
+FILTERS         = [{'Name': 'name', 'Values': [filtername]}]
 OWNERS          = ['self'] # 'self','amazon'
 JSONFILENAME    = './reports/EC2AMIScan.json'
-CSVFILENAME     = './reports/EC2AMIScan.csv'
 DELJSONFILENAME = './reports/EC2AMIScanDelete.json'
-DELCSVFILENAME  = './reports/EC2AMIScanDelete.csv'
-AGE             = 90  # days # 3 months old AMI 90 days
+AGE             = age # 90  # days # 3 months old AMI 90 days
 DELETE          = False # Warning It awill automaticaly delete AMI that will fall to the query results.
 HASRETAIN       = 1 # always check if there are retain copies; make sure not all AMI will be deleted even it's too old...
 
@@ -45,7 +69,7 @@ def parseScanedAMIs(images):
     for i in range(len(images['Images'])):
         CreationDate              = images['Images'][i]['CreationDate']
         ageDays = daysOld(CreationDate)
-        if AGE != '':
+        if AGE > 0:
             if ageDays < AGE:
                 skipped = skipped + 1
                 continue
@@ -82,41 +106,58 @@ def cleanAMI(ec2Client, amiId, snapshotId):
     cleanOpsDetails[snapshotId] = delSnap['ResponseMetadata']['HTTPStatusCode']
     return cleanOpsDetails
 
-print("Starting Scan...")
 scannedAMI = scanAmi(ec2Client)
 if len(scannedAMI) > 0:
     if os.path.exists(JSONFILENAME) == True:
         os.remove(JSONFILENAME)
-    if os.path.exists(CSVFILENAME) == True:
-        os.remove(CSVFILENAME)
     if os.path.exists(DELJSONFILENAME) == True:
         os.remove(DELJSONFILENAME)
-    if os.path.exists(DELCSVFILENAME) == True:
-        os.remove(DELCSVFILENAME)
 
 if DELETE == True:
     print("Delete Flag Detected...")
     if scannedAMI['hasRetain'] >= HASRETAIN:
         print("Will Retain: " + str(scannedAMI['hasRetain']) + " Copies...")
         delOps = dict()
+        hasFetched = False
         for i in scannedAMI:
             if i == 'hasRetain':
                 continue
             else:
+                hasFetched = True
                 snapshotid = scannedAMI[i]['VolumeGB']['snapshot']
                 imageName  = scannedAMI[i]['Name']
                 # Disable 
                 # delRes = 200
                 delRes = cleanAMI(ec2Client, i, snapshotid)
                 delOps[imageName] = delRes
-        writeJsonFile(DELJSONFILENAME, delOps)
-        writeCsvFile(DELCSVFILENAME, delOps, ['AMI Name', 'Status'])
-        print("Delete Report Generated...")
+        if(hasFetched):
+            writeJsonFile(DELJSONFILENAME, delOps)
+            print("Delete Report Generated...")
+        else:
+            print("Nothing Found...")
     else:
         print("No Delete Due to Retain Constraint: " + str(scannedAMI['hasRetain']) + " Copies... No Copies will be retain if delete proceeds... Manual checking is recommended...")
-    
-writeJsonFile(JSONFILENAME, scannedAMI)
-writeCsvFile(CSVFILENAME, scannedAMI, ['AMI ID', 'Details'])
-print("Report Generated...")
 
+else:
+    print("Delete Flag NOT Detected... No Deletion will be done...")
+    delOps = dict()
+    hasFetched = False;
+    for i in scannedAMI:
+        if i == 'hasRetain':
+            continue
+        else:
+            hasFetched = True;
+            snapshotid = scannedAMI[i]['VolumeGB']['snapshot']
+            imageName = scannedAMI[i]['Name']
+            # Disable
+            # delRes = 200
+            delRes = dict()
+            delRes[i] = i
+            delRes[snapshotid] = snapshotid
+            delOps[imageName] = delRes
+    if(hasFetched):
+        writeJsonFile(DELJSONFILENAME, delOps)
+        print("Report Generated...")
+    else:
+        print("Nothing Found...")
 
