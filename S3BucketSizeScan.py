@@ -1,14 +1,15 @@
-import boto3
-import argparse
+import boto3, argparse
+from os import path
 from helper import writeCsvFile, writeJsonFile, convertBytesSize
 
-# number of max keys
+# Generic Attributes
 BATCHLISTING = 500
-JSONFILENAME = './reports/S3BucketSizeScan.json'
+REPORTSDIR   = './reports'
+JSONFILENAME = '{}/S3BucketSizeScan.json'.format(REPORTSDIR)
 
 # Define arguments for command line execution
 parser = argparse.ArgumentParser(
-    description="Extract Bucket Size Details")
+    description="Extract bucket size in specified bucket name and prefix")
 parser.add_argument("-b",
                     "--bucket",
                     help="Target Bucket Name",
@@ -17,17 +18,27 @@ parser.add_argument("-p",
                     "--prefix",
                     help="Prefix or directories",
                     required=False)
+parser.add_argument("-s",
+                    "--awsprofile",
+                    help="AWS Profile.",
+                    required=False)
 
 # Read the arguments from the command line
-args = parser.parse_args()
-bucket = args.bucket
-prefix = "" if args.prefix == None else args.prefix
+args         = parser.parse_args()
+bucket       = args.bucket
+prefix       = "" if args.prefix == None else args.prefix
+awsprofile   = "default" if args.awsprofile == None else args.awsprofile
 
-## User Data ##
+# User Attributes
 BUCKET = bucket #'<bucket>'  # 'bucketname'
 PREFIX = prefix #'<prefix | dir>'  # 'dir1/dir2/'
 
-S3Client = boto3.client('s3')
+# Session Creation
+session  = boto3.Session(profile_name="{}".format(awsprofile))
+S3Client = session.client('s3')
+
+def contextSettings(args):
+    print(args)
 
 def getObjectsPrefix(client, Bucket, Prefix, marker=''):
     if(marker == ''):
@@ -44,7 +55,6 @@ def getObjectsPrefix(client, Bucket, Prefix, marker=''):
             Prefix=Prefix
         )
     return response
-
 
 def listObjects(client, Bucket, Prefix):
     marker = ''
@@ -66,6 +76,11 @@ def listObjects(client, Bucket, Prefix):
     bucketDetail['prefix']     = Prefix
     return bucketDetail
 
+# Main
+contextSettings(args)
+if not path.exists(REPORTSDIR):
+    print("Reports Directory not exist... Creating one...")
+    os.makedirs(REPORTSDIR)
 
 response = S3Client.list_buckets()
 buckets  = []

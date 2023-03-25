@@ -3,3 +3,5 @@ helper.pyc
 __pycache__
 pyvenv.cfg
 tmp
+downloads
+reports

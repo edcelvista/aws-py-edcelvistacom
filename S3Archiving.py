@@ -4,7 +4,7 @@ import os, argparse, time, math, pathlib
 
 # Define arguments for command line execution
 parser = argparse.ArgumentParser(
-    description="Archive Files from Source Local File System and Upload to S3 | $python3 S3Archiving.py --directory tmp --s3bucket edcelvistadotcom --awsprofile default --agefilter 1 --extension csv --prefix file --dryrun False --ispurge True")
+    description="Archive Files from Source Local File System to S3")
 parser.add_argument("-d",
                     "--directory",
                     help="Source Directory.",
@@ -113,7 +113,7 @@ def scanDirectory(directory, prefix, extension, agefilter):
                     os.remove(absFilePath)
     scan.close()
 
-## ITERATE DIRECTORY OBJ ##
+# Main
 contextSettings(args)
 scanDirectory(directory, prefix, extension, agefilter)
 

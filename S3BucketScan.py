@@ -1,11 +1,30 @@
-import boto3
+import boto3, argparse
+from os import path
 from helper import writeCsvFile, writeJsonFile, convertBytesSize
 
-# number of max keys
+# Generic Attributes
 BATCHLISTING = 500
-JSONFILENAME = './reports/S3BucketScan.json'
+REPORTSDIR   = './reports'
+JSONFILENAME = '{}/S3BucketScan.json'.format(REPORTSDIR)
 
-S3Client = boto3.client('s3')
+# Define arguments for command line execution
+parser = argparse.ArgumentParser(
+    description="Extract bucket usage details based on the aws profile used")
+parser.add_argument("-s",
+                    "--awsprofile",
+                    help="AWS Profile.",
+                    required=False)
+
+# Read the arguments from the command line
+args         = parser.parse_args()
+awsprofile   = "default" if args.awsprofile == None else args.awsprofile
+
+# Session Creation
+session  = boto3.Session(profile_name="{}".format(awsprofile))
+S3Client = session.client('s3')
+
+def contextSettings(args):
+    print(args)
 
 def getObjects(client, Bucket, marker=''):
     if(marker==''):
@@ -40,10 +59,17 @@ def listObjects(client, Bucket):
     bucketDetail['size'] = convertBytesSize(size)
     return bucketDetail
 
+# Main
+contextSettings(args)
+if not path.exists(REPORTSDIR):
+    print("Reports Directory not exist... Creating one...")
+    os.makedirs(REPORTSDIR)
+
 response = S3Client.list_buckets()
 results = dict()
 for i in range(len(response['Buckets'])):
     res = listObjects(S3Client, response['Buckets'][i]['Name'])
     results[res['bucketName']] = res['size']
 
+print(results)
 writeJsonFile(JSONFILENAME, results)
