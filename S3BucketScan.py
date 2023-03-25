@@ -1,4 +1,4 @@
-import boto3, argparse
+import boto3, argparse, os, psutil
 from os import path
 from helper import writeCsvFile, writeJsonFile, convertBytesSize
 
@@ -25,6 +25,16 @@ S3Client = session.client('s3')
 
 def contextSettings(args):
     print(args)
+
+def getResourceUsage():
+    # Getting loadover15 minutes
+    load1, load5, load15 = psutil.getloadavg()
+    cpu_usage = (load15/os.cpu_count()) * 100
+    print("The CPU usage is : ", cpu_usage)
+    # Getting % usage of virtual_memory ( 3rd field)
+    print('RAM memory % used:', psutil.virtual_memory()[2])
+    # Getting usage of virtual_memory in GB ( 4th field)
+    print('RAM Used (GB):', psutil.virtual_memory()[3]/1000000000)
 
 def getObjects(client, Bucket, marker=''):
     if(marker==''):
@@ -69,7 +79,8 @@ response = S3Client.list_buckets()
 results = dict()
 for i in range(len(response['Buckets'])):
     res = listObjects(S3Client, response['Buckets'][i]['Name'])
+    print("{}: {}".format(res['bucketName'], res['size']))
     results[res['bucketName']] = res['size']
 
-print(results)
 writeJsonFile(JSONFILENAME, results)
+getResourceUsage()
